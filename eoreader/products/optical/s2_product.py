@@ -318,7 +318,7 @@ class S2Product(OpticalProduct):
         Returns:
             rasterio.crs.CRS: CRS object
         """
-        if self._processing_baseline < 2.07:
+        if self._processing_baseline < 6.0:#2.07:
             try:
                 root, ns = self.read_mtd()
                 crs = CRS.from_string(root.findtext(".//HORIZONTAL_CS_CODE"))
@@ -328,7 +328,10 @@ class S2Product(OpticalProduct):
                 utm_letter = self.tile_name[3]
                 utm_hemisphere = 6 if utm_letter > "N" else 7
                 crs = CRS.from_string(f"epsg:32{utm_hemisphere}{utm_nb}")
+            LOGGER.info("Assigned CRS ".format())
+            crs = super().crs()
         else:
+            LOGGER.warning("Product baseline {} >= 2.07, crs not assigned".format(self._processing_baseline))
             crs = super().crs()
 
         return crs
