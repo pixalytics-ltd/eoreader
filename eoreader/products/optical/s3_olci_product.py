@@ -139,11 +139,22 @@ class S3OlciProduct(S3Product):
             f"{self.condensed_name}_{band_str}_{res_str}.tif"
         )
 
-    def _set_preprocess_members(self):
-        """Set pre-process members"""
-        # Radiance bands
-        self._radiance_file = "{band}_radiance.nc"
-        self._radiance_subds = "{band}_radiance"
+    def _set_preprocess_members(self, product_path):
+        """
+        Set pre-process members
+        Args:
+            product_path (str): Path used to determine product level
+
+        """
+
+        if "WFR" in str(product_path):
+            # Reflectance bands
+            self._radiance_file = "{band}_reflectance.nc"
+            self._radiance_subds = "{band}_reflectance"
+        else:
+            # Radiance bands
+            self._radiance_file = "{band}_radiance.nc"
+            self._radiance_subds = "{band}_radiance"
 
         # Geocoding
         self._geo_file = "geo_coordinates.nc"
@@ -189,10 +200,13 @@ class S3OlciProduct(S3Product):
         More on spectral bands `here <https://sentinel.esa.int/web/sentinel/user-guides/sentinel-3-olci/resolutions/radiometric>`_.
         """
         # Product type
-        if self.name[7] != "1":
+        if self.name[7] == "1":
+            self.product_type = S3ProductType.OLCI_EFR
+        elif self.name[7] == "2":
+            self.product_type = S3ProductType.OLCI_WFR
+        else:
             raise InvalidTypeError("Only L1 products are used for Sentinel-3 data.")
 
-        self.product_type = S3ProductType.OLCI_EFR
         self._data_type = S3DataType.EFR
 
     def _map_bands(self) -> None:
@@ -518,9 +532,9 @@ class S3OlciProduct(S3Product):
                 filename, subdataset, dtype=kwargs.get("dtype", np.float32)
             )
 
-            # Convert radiance to reflectances if needed
+            # Convert radiance to reflectances if needed, not needed for OLCI L2
             # Convert first pixel by pixel before reprojection !
-            if to_reflectance:
+            if to_reflectance and "WFR" not in str(self.product_type):
                 LOGGER.debug(f"Converting {band_str} to reflectance")
                 band_arr = self._rad_2_refl(band_arr, band)
 

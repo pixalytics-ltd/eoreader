@@ -261,7 +261,7 @@ MTD_REGEX = {
     },
     Constellation.S2: {"nested": 3, "regex": r"MTD_TL.xml"},
     Constellation.S2_THEIA: rf"{CONSTELLATION_REGEX[Constellation.S2_THEIA]}_MTD_ALL\.xml",
-    Constellation.S3_OLCI: r"Oa\d{2}_radiance.nc",
+    Constellation.S3_OLCI: r"Oa\d{2}_(radiance|reflectance).nc",
     Constellation.S3_SLSTR: r"S\d_radiance_an.nc",
     Constellation.L9: rf"{CONSTELLATION_REGEX[Constellation.L9]}_MTL\.txt",
     Constellation.L8: rf"{CONSTELLATION_REGEX[Constellation.L8]}_MTL\.txt",

@@ -65,6 +65,9 @@ class S3ProductType(ListEnum):
     OLCI_EFR = "OL_1_EFR___"
     """OLCI EFR Product Type"""
 
+    OLCI_WFR = "OL_2_WFR___"
+    """OLCI Level 2 WFR Product Type"""
+
     SLSTR_RBT = "SL_1_RBT___"
     """SLSTR RBT Product Type"""
 
@@ -130,7 +133,7 @@ class S3Product(OpticalProduct):
         self._misc_file = None
         self._solar_flux_name = None
 
-        self._set_preprocess_members()
+        self._set_preprocess_members(product_path)
 
         super().__init__(product_path, archive_path, output_path, remove_tmp, **kwargs)
 
