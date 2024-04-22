@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -96,6 +96,21 @@ class CskProduct(CosmoProduct):
 
         self.pixel_size = def_pixel_size
         self.resolution = def_res
+
+    def _post_init(self, **kwargs) -> None:
+        """
+        Function used to post_init the products
+        (setting product-type, band names and so on)
+        """
+        if self.nof_swaths > 1:
+            # Calibration fails with CSG data
+            LOGGER.debug(
+                "SNAP Error: Calibration currently fails for CSK data with multiple swaths. Removing this step."
+            )
+            self._calibrate = False
+
+        # Post init done by the super class
+        super()._post_init(**kwargs)
 
     def _set_sensor_mode(self) -> None:
         """Get sensor mode"""

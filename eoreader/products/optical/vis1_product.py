@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -137,7 +137,7 @@ class Vis1Product(DimapV1Product):
         self._proj_prod_type = [Vis1ProductType.PRJ]
         self._raw_units = RawUnits.RAD
 
-        # Post init done by the super class
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     def _post_init(self, **kwargs) -> None:

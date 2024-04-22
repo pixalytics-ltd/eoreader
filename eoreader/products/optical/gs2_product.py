@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -155,7 +155,7 @@ class Gs2Product(DimapV1Product):
         self._proj_prod_type = [Gs2ProductType.L1B, Gs2ProductType.L1S]
         self._raw_units = RawUnits.DN
 
-        # Post init done by the super class
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     def _post_init(self, **kwargs) -> None:
@@ -480,7 +480,7 @@ class Gs2Product(DimapV1Product):
         quicklook_path = None
         try:
             if self.is_archived:
-                quicklook_path = path.get_archived_rio_path(
+                quicklook_path = self.path / path.get_archived_path(
                     self.path, file_regex=r".*QL\.png"
                 )
             else:

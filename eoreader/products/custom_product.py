@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -90,7 +90,7 @@ class CustomProduct(Product):
         """Custom kwargs"""
 
         # Initialization from the super class
-        # (Custom products arte managing constellation on their own)
+        # (Custom products are managing constellation on their own)
         super_kwargs = kwargs.copy()
         super_kwargs.pop("constellation", None)
         super().__init__(
@@ -102,6 +102,10 @@ class CustomProduct(Product):
         Function used to pre_init the products
         (setting needs_extraction and so on)
         """
+
+        # Custom products are stacked
+        self.is_stacked = True
+
         self.needs_extraction = False
 
         # -- Parse the kwargs

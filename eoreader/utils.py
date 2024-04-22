@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -30,7 +30,7 @@ from rasterio import errors
 from rasterio.enums import Resampling
 from rasterio.errors import NotGeoreferencedWarning
 from rasterio.rpc import RPC
-from sertit import AnyPath, geometry, logs, rasters
+from sertit import AnyPath, geometry, logs, path, rasters
 from sertit.types import AnyPathStrType, AnyPathType
 
 from eoreader import EOREADER_NAME
@@ -40,7 +40,7 @@ from eoreader.exceptions import InvalidProductError
 from eoreader.keywords import _prune_keywords
 
 LOGGER = logging.getLogger(EOREADER_NAME)
-DEFAULT_TILE_SIZE = 2048
+DEFAULT_TILE_SIZE = 1024
 UINT16_NODATA = rasters.UINT16_NODATA
 
 
@@ -92,17 +92,18 @@ def get_data_dir() -> AnyPathType:
     return data_dir
 
 
-def get_split_name(name: str) -> list:
+def get_split_name(name: str, sep: str = "_") -> list:
     """
     Get split name (with _). Removes empty indexes.
 
     Args:
         name (str): Name to split
+        sep (str): Separator
 
     Returns:
         list: Split name
     """
-    return [x for x in name.split("_") if x]
+    return [x for x in name.split(sep) if x]
 
 
 # flake8: noqa
@@ -162,7 +163,7 @@ def read(
     tile_size = int(os.getenv(TILE_SIZE, DEFAULT_TILE_SIZE))
 
     if use_dask():
-        chunks = kwargs.get("chunks", [1, tile_size, tile_size])
+        chunks = kwargs.get("chunks", {"band": 1, "x": tile_size, "y": tile_size})
         # LOGGER.debug(f"Current chunking: {chunks}")
     else:
         # LOGGER.debug("Dask use is not enabled. No chunk will be used, but you may encounter memory overflow errors.")
@@ -410,7 +411,11 @@ def stack(
         scale = 10000
         round_nb = 1000
         round_min = -0.1
-        stack_min = float(band_xds.to_array().quantile(0.001))
+        try:
+            stack_min = float(band_xds.to_array().quantile(0.001))
+        except ValueError:
+            stack_min = np.nanpercentile(band_xds.to_array(), 1)
+
         if np.round(stack_min * round_nb) / round_nb < round_min:
             LOGGER.warning(
                 f"Cannot convert the stack to uint16 as it has negative values ({stack_min} < {round_min}). Keeping it in float32."
@@ -451,3 +456,35 @@ def stack(
             stack = stack.rio.write_nodata(nodata, encoded=True, inplace=True)
 
     return stack, dtype
+
+
+def get_dim_img_path(dim_path: AnyPathStrType, img_name: str = "*") -> list:
+    """
+    Get the image path from a :code:`BEAM-DIMAP` data.
+
+    A :code:`BEAM-DIMAP` file cannot be opened by rasterio, although its :code:`.img` file can.
+
+    .. code-block:: python
+
+        >>> dim_path = "path/to/dimap.dim"  # BEAM-DIMAP image
+        >>> img_path = get_dim_img_path(dim_path)
+
+        >>> # Read raster
+        >>> raster, meta = read(img_path)
+
+    Args:
+        dim_path (AnyPathStrType): DIM path (.dim or .data)
+        img_name (str): .img file name (or regex), in case there are multiple .img files (ie. for S3 data)
+
+    Returns:
+        list: .img files as a list
+    """
+    dim_path = AnyPath(dim_path)
+    if dim_path.suffix == ".dim":
+        dim_path = dim_path.with_suffix(".data")
+
+    assert dim_path.suffix == ".data" and dim_path.is_dir()
+
+    return path.get_file_in_dir(
+        dim_path, img_name, extension="img", exact_name=True, get_list=True
+    )

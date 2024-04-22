@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -140,7 +140,7 @@ class IceyeProduct(SarProduct):
         # Its original filename is its name
         self._use_filename = True
 
-        # Post init done by the super class
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     def _post_init(self, **kwargs) -> None:
@@ -181,7 +181,7 @@ class IceyeProduct(SarProduct):
         # Open extent KML file
         try:
             extent_file = next(self.path.glob("*ICEYE*QUICKLOOK*.kml"))
-        except IndexError as ex:
+        except StopIteration as ex:
             raise InvalidProductError(
                 f"Extent file (*.kml) not found in {self.path}"
             ) from ex

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-COSMO-SkyMed 2nd Generation products.
+COSMO-SkyMed products.
 More info `here <https://egeos.my.salesforce.com/sfc/p/#1r000000qoOc/a/69000000JXxZ/WEEbowzi5cmY8vLqyfAAMKZ064iN1eWw_qZAgUkTtXI>`_.
 """
 import logging
@@ -118,7 +118,7 @@ class CosmoProduct(SarProduct):
         with h5netcdf.File(self._img_path, phony_dims="access") as raw_h5:
             self.nof_swaths = len(list(raw_h5.groups))
 
-        # Post init done by the super class
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     @cache
@@ -418,10 +418,8 @@ class CosmoProduct(SarProduct):
         Returns:
             str: Quicklook path
         """
-        qlk_path = (
-            self._get_band_folder(writable=True) / f"{self.condensed_name}_QLK.tif"
-        )
-        if not qlk_path.is_file():
+        qlk_path, qlk_exists = self._get_out_path(f"{self.condensed_name}_QLK.tif")
+        if not qlk_exists:
             with rasterio.open(str(self._img_path)) as ds:
                 quicklook_paths = [subds for subds in ds.subdatasets if "QLK" in subds]
 
@@ -488,7 +486,7 @@ class CosmoProduct(SarProduct):
             str: Band path
         """
         with h5netcdf.File(self._img_path, phony_dims="access") as raw_h5:
-            if self.sar_prod_type == SarProductType.GDRG or self.nof_swaths == 1:
+            if self.nof_swaths == 1:
                 return super()._pre_process_sar(band, pixel_size, **kwargs)
             else:
                 LOGGER.warning(

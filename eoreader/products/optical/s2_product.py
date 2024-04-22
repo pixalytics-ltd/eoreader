@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Sentinel-2 products """
+import difflib
 import json
 import logging
 import os
@@ -31,7 +32,9 @@ import pandas as pd
 import rasterio
 import xarray as xr
 from affine import Affine
+from fiona.errors import DriverError
 from lxml import etree
+from pystac import Item
 from rasterio import errors, features, transform
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
@@ -47,6 +50,7 @@ from eoreader.bands import (
     CA,
     CIRRUS,
     CLOUDS,
+    EOREADER_STAC_MAP,
     GREEN,
     NARROW_NIR,
     NIR,
@@ -65,7 +69,7 @@ from eoreader.bands import (
     to_str,
 )
 from eoreader.exceptions import InvalidProductError, InvalidTypeError
-from eoreader.products import OpticalProduct
+from eoreader.products import OpticalProduct, StacProduct
 from eoreader.products.optical.optical_product import RawUnits
 from eoreader.products.product import OrbitDirection
 from eoreader.stac import CENTER_WV, FWHM, GSD, ID, NAME
@@ -116,7 +120,7 @@ class S2Jp2Masks(ListEnum):
 
 
 BAND_DIR_NAMES = {
-    S2ProductType.L1C: "IMG_DATA",
+    S2ProductType.L1C: ".",
     S2ProductType.L2A: {
         "01": ["R60m"],
         "02": ["R10m", "R20m", "R60m"],
@@ -158,11 +162,14 @@ class S2Product(OpticalProduct):
         # See here for more information
         # https://sentinels.copernicus.eu/web/sentinel/-/copernicus-sentinel-2-major-products-upgrade-upcoming
         self._processing_baseline = None
-        self.base_no_data_val = 0
+        self.raw_no_data = 0
         self.no_data_val = {}
 
         # L2Ap
         self._is_l2ap = False
+
+        # S2 Sinergise
+        self._is_sinergise = kwargs.pop("is_sinergise", False)
 
         # Initialization from the super class
         super().__init__(product_path, archive_path, output_path, remove_tmp, **kwargs)
@@ -183,10 +190,15 @@ class S2Product(OpticalProduct):
         """
         self._has_cloud_cover = True
         self.needs_extraction = False
-        self._use_filename = True
+        # Use filename for SAFE names, not for others
+        # S2A_MSIL1C_20191215T110441_N0208_R094_T30TXP_20191215T114155.SAFE has 65 characters
+        self._use_filename = len(self.filename) > 50
         self._raw_units = RawUnits.REFL
 
-        # Post init done by the super class
+        # We need to set the constellation asap for this product (to manage correctly the name of broken products)
+        self.constellation = self._get_constellation()
+
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     def _post_init(self, **kwargs) -> None:
@@ -489,6 +501,28 @@ class S2Product(OpticalProduct):
 
         return name
 
+    def _get_qi_folder(self):
+        """"""
+        if self._is_sinergise:
+            mask_folder = "qi"
+        elif self.is_archived:
+            mask_folder = ".*GRANULE.*QI_DATA"
+        else:
+            mask_folder = "**/*GRANULE/*/QI_DATA"
+
+        return mask_folder
+
+    def _get_image_folder(self):
+        """"""
+        if self._is_sinergise:
+            img_folder = "."
+        elif self.is_archived:
+            img_folder = ".*GRANULE.*IMG_DATA"
+        else:
+            img_folder = "**/*GRANULE/*/IMG_DATA"
+
+        return img_folder
+
     def _get_res_band_folder(self, band_list: list, pixel_size: float = None) -> dict:
         """
         Return the folder containing the bands of a proper S2 products.
@@ -547,7 +581,12 @@ class S2Product(OpticalProduct):
                     s2_bands_folder[band] = band_path
             else:
                 # Search for the name of the folder into the S2 products
-                s2_bands_folder[band] = next(self.path.glob(f"**/*/{dir_name}"))
+                try:
+                    s2_bands_folder[band] = next(
+                        self.path.glob(f"{self._get_image_folder()}/{dir_name}")
+                    )
+                except IndexError:
+                    s2_bands_folder[band] = self.path
 
         for band in band_list:
             if band not in s2_bands_folder:
@@ -598,12 +637,12 @@ class S2Product(OpticalProduct):
                     if self.is_archived:
                         band_paths[band] = path.get_archived_rio_path(
                             self.path,
-                            f".*{band_folders[band]}.*_B{band_id}.*.jp2",
+                            f".*{band_folders[band]}.*B{band_id}.*.jp2",
                         )
                     else:
                         band_paths[band] = path.get_file_in_dir(
                             band_folders[band],
-                            f"_B{band_id}",
+                            f"B{band_id}",
                             extension="jp2",
                         )
                 except (FileNotFoundError, IndexError) as ex:
@@ -773,7 +812,7 @@ class S2Product(OpticalProduct):
             # Compute the correct radiometry of the band
             band_arr = (band_arr + offset) / quantif_value
 
-            self.no_data_val[band] = (self.base_no_data_val + offset) / quantif_value
+            self.no_data_val[band] = (self.raw_no_data + offset) / quantif_value
 
         return band_arr.astype(np.float32)
 
@@ -781,7 +820,7 @@ class S2Product(OpticalProduct):
         self, mask_id: Union[str, S2GmlMasks], band: Union[BandNames, str] = None
     ) -> gpd.GeoDataFrame:
         """
-        Open S2 mask (GML files stored in QI_DATA) as :code:`gpd.GeoDataFrame`.
+        Open S2 mask (GML files stored in QI_DATA/qi) as :code:`gpd.GeoDataFrame`.
 
         Masks than can be called that way are:
 
@@ -842,7 +881,7 @@ class S2Product(OpticalProduct):
                 with zipfile.ZipFile(self.path, "r") as zip_ds:
                     filenames = [f.filename for f in zip_ds.filelist]
                     regex = re.compile(
-                        f".*GRANULE.*QI_DATA.*{mask_id.value}_B{band_name}.gml"
+                        f"{self._get_qi_folder()}.*{mask_id.value}_B{band_name}.gml"
                     )
                     mask_path = zip_ds.extract(
                         list(filter(regex.match, filenames))[0], tmp_dir.name
@@ -851,12 +890,16 @@ class S2Product(OpticalProduct):
                 # Get mask path
                 mask_path = path.get_file_in_dir(
                     self.path,
-                    f"**/*GRANULE/*/QI_DATA/*{mask_id.value}_B{band_name}.gml",
+                    f"{self._get_qi_folder()}/*{mask_id.value}_B{band_name}.gml",
                     exact_name=True,
                 )
 
             # Read vector
-            mask = vectors.read(mask_path, crs=self.crs())
+            try:
+                mask = vectors.read(mask_path, crs=self.crs())
+            except DriverError:
+                LOGGER.warning(f"Corrupted mask: {mask_path}. Returning an empty one.")
+                mask = gpd.GeoDataFrame(geometry=[], crs=self.crs())
 
         except Exception as ex:
             raise InvalidProductError(ex) from ex
@@ -905,13 +948,13 @@ class S2Product(OpticalProduct):
 
         if self.is_archived:
             mask_path = path.get_archived_rio_path(
-                self.path, f".*GRANULE.*QI_DATA.*{mask_id.value}_B{band_id}.jp2"
+                self.path, f"{self._get_qi_folder()}.*{mask_id.value}_B{band_id}.jp2"
             )
         else:
             # Get mask path
             mask_path = path.get_file_in_dir(
                 self.path,
-                f"**/*GRANULE/*/QI_DATA/*{mask_id.value}_B{band_id}.jp2",
+                f"{self._get_qi_folder()}/*{mask_id.value}_B{band_id}.jp2",
                 exact_name=True,
             )
 
@@ -1203,7 +1246,9 @@ class S2Product(OpticalProduct):
         # Used to make the difference between 2 products acquired on the same tile at the same date but cut differently
         # Sentinel-2 generation time: "%Y%m%dT%H%M%S" -> save only %H%M%S
         gen_time = self.split_name[-1].split("T")[-1]
-        return f"{self.get_datetime()}_{self.constellation.name}_{self.tile_name}_{self.product_type.name}_{gen_time}"
+
+        # Force S2 as constellation name for S2_SIN to work
+        return f"{self.get_datetime()}_S2_{self.tile_name}_{self.product_type.name}_{gen_time}"
 
     @cache
     def get_mean_sun_angles(self) -> (float, float):
@@ -1257,8 +1302,12 @@ class S2Product(OpticalProduct):
         Returns:
             (etree._Element, dict): Metadata XML root and its namespaces
         """
-        mtd_from_path = "GRANULE/*/MTD*.xml"
-        mtd_archived = r"GRANULE.*MTD.*\.xml"
+        if self._is_sinergise:
+            mtd_from_path = "metadata.xml"
+            mtd_archived = r"metadata\.xml"
+        else:
+            mtd_from_path = "GRANULE/*/MTD*.xml"
+            mtd_archived = r"GRANULE.*MTD.*\.xml"
 
         return self._read_mtd_xml(mtd_from_path, mtd_archived)
 
@@ -1593,19 +1642,19 @@ class S2Product(OpticalProduct):
         quicklook_path = None
         try:
             if self.is_archived:
-                quicklook_path = path.get_archived_rio_path(
+                quicklook_path = self.path / path.get_archived_path(
                     self.path, file_regex=r".*ql\.jpg"
                 )
             else:
-                quicklook_path = str(next(self.path.glob("**/*ql.jpg")))
+                quicklook_path = next(self.path.glob("**/*ql.jpg"))
         except (StopIteration, FileNotFoundError):
             try:
                 if self.is_archived:
-                    quicklook_path = path.get_archived_rio_path(
+                    quicklook_path = self.path / path.get_archived_path(
                         self.path, file_regex=r".*preview\.jpg"
                     )
                 else:
-                    quicklook_path = str(next(self.path.glob("**/preview.jpg")))
+                    quicklook_path = next(self.path.glob("**/preview.jpg"))
             except (StopIteration, FileNotFoundError):
                 # Use the PVI
                 try:
@@ -1614,9 +1663,12 @@ class S2Product(OpticalProduct):
                             self.path, file_regex=r".*PVI\.jp2"
                         )
                     else:
-                        quicklook_path = str(next(self.path.glob("**/*PVI.jp2")))
+                        quicklook_path = next(self.path.glob("**/*PVI.jp2"))
                 except (StopIteration, FileNotFoundError):
                     LOGGER.warning(f"No quicklook found in {self.condensed_name}")
+
+        if quicklook_path is not None:
+            quicklook_path = str(quicklook_path)
 
         return quicklook_path
 
@@ -1654,3 +1706,181 @@ class S2Product(OpticalProduct):
             od = OrbitDirection.DESCENDING
 
         return od
+
+
+class S2StacProduct(StacProduct, S2Product):
+    def __init__(
+        self,
+        product_path: AnyPathStrType = None,
+        archive_path: AnyPathStrType = None,
+        output_path: AnyPathStrType = None,
+        remove_tmp: bool = False,
+        **kwargs,
+    ) -> None:
+        self.kwargs = kwargs
+        """Custom kwargs"""
+
+        # Copy the kwargs
+        super_kwargs = kwargs.copy()
+
+        # Get STAC Item
+        self.item = None
+        """ STAC Item of the product """
+        self.item = super_kwargs.pop("item", None)
+        if self.item is None:
+            try:
+                self.item = Item.from_file(product_path)
+            except TypeError:
+                raise InvalidProductError(
+                    "You should either fill 'product_path' or 'item'."
+                )
+
+        if not self._is_mpc():
+            self.default_clients = [
+                self.get_e84_client(),
+                self.get_sinergise_client(),
+                # Not yet handled
+                # HttpClient(ClientSession(base_url="https://landsatlook.usgs.gov", auth=BasicAuth(login="", password="")))
+            ]
+        self.clients = super_kwargs.pop("client", self.default_clients)
+
+        if product_path is None:
+            # Canonical link is always the second one
+            # TODO: check if ok
+            product_path = AnyPath(self.item.links[1].target).parent
+
+        # Initialization from the super class
+        super().__init__(product_path, archive_path, output_path, remove_tmp, **kwargs)
+
+    def _pre_init(self, **kwargs) -> None:
+        """
+        Function used to pre_init the products
+        (setting needs_extraction and so on)
+        """
+        self._raw_units = RawUnits.REFL
+        self._has_cloud_cover = True
+        self._use_filename = False
+        self.needs_extraction = False
+
+        # Pre init done by the super class
+        super(S2Product, self)._pre_init(**kwargs)
+
+    def _get_path(self, file_id: str, ext="tif") -> str:
+        """
+        Get either the archived path of the normal path of a tif file
+
+        Args:
+            band_id (str): Band ID
+
+        Returns:
+            AnyPathType: band path
+        """
+        if file_id.lower() in self.item.assets:
+            asset_name = file_id.lower()
+        elif file_id in [band.id for band in self.bands.values() if band is not None]:
+            band_name = [
+                band_name
+                for band_name, band in self.bands.items()
+                if band is not None and f"{band.id}" == file_id
+            ][0]
+            asset_name = EOREADER_STAC_MAP[band_name].value
+        else:
+            try:
+                asset_name = difflib.get_close_matches(
+                    file_id, self.item.assets.keys(), cutoff=0.5, n=1
+                )[0]
+            except Exception:
+                raise FileNotFoundError(
+                    f"Impossible to find an asset in {list(self.item.assets.keys())} close enough to '{file_id}'"
+                )
+
+        return self.sign_url(self.item.assets[asset_name].href)
+
+    def get_band_paths(
+        self, band_list: list, pixel_size: float = None, **kwargs
+    ) -> dict:
+        """
+        Return the paths of required bands.
+
+        .. code-block:: python
+
+            >>> from eoreader.reader import Reader
+            >>> from eoreader.bands import *
+            >>> path = r"S2A_MSIL1C_20200824T110631_N0209_R137_T30TTK_20200824T150432.SAFE.zip"
+            >>> prod = Reader().open(path)
+            >>> prod.get_band_paths([GREEN, RED])
+            {
+                <SpectralBandNames.GREEN: 'GREEN'>: 'zip+file://S2A_MSIL1C_20200824T110631_N0209_R137_T30TTK_20200824T150432.SAFE.zip!/S2A_MSIL1C_20200824T110631_N0209_R137_T30TTK_20200824T150432.SAFE/GRANULE/L1C_T30TTK_A027018_20200824T111345/IMG_DATA/T30TTK_20200824T110631_B03.jp2',
+                <SpectralBandNames.RED: 'RED'>: 'zip+file://S2A_MSIL1C_20200824T110631_N0209_R137_T30TTK_20200824T150432.SAFE.zip!/S2A_MSIL1C_20200824T110631_N0209_R137_T30TTK_20200824T150432.SAFE/GRANULE/L1C_T30TTK_A027018_20200824T111345/IMG_DATA/T30TTK_20200824T110631_B04.jp2'
+            }
+
+        Args:
+            band_list (list): List of the wanted bands
+            pixel_size (float): Band pixel size
+            kwargs: Other arguments used to load bands
+
+        Returns:
+            dict: Dictionary containing the path of each queried band
+        """
+        band_paths = {}
+        for band in band_list:
+            # Get clean band path
+            clean_band = self._get_clean_band_path(
+                band, pixel_size=pixel_size, **kwargs
+            )
+            if clean_band.is_file():
+                band_paths[band] = clean_band
+            else:
+                band_id = self.bands[band].id
+                try:
+                    band_paths[band] = self._get_path(band_id)
+                except (FileNotFoundError, IndexError) as ex:
+                    raise InvalidProductError(
+                        f"Non existing {band} ({band_id}) band for {self.path}"
+                    ) from ex
+
+        return band_paths
+
+    @cache
+    def read_datatake_mtd(self) -> (etree._Element, dict):
+        """
+        Read datatake metadata and outputs the metadata XML root and its namespaces as a dict
+        (datatake metadata is the file in the root directory named :code:`MTD_MSI(L1C/L2A).xml`)
+
+        .. code-block:: python
+
+            >>> from eoreader.reader import Reader
+            >>> path = r"S2A_MSIL1C_20200824T110631_N0209_R137_T30TTK_20200824T150432.SAFE.zip"
+            >>> prod = Reader().open(path)
+            >>> prod.read_mtd()
+            (<Element {https://psd-14.sentinel2.eo.esa.int/PSD/S2_PDI_Level-2A_Tile_Metadata.xsd}Level-2A_Tile_ID at ...>,
+            {'nl': '{https://psd-14.sentinel2.eo.esa.int/PSD/S2_PDI_Level-2A_Tile_Metadata.xsd}'})
+
+        Returns:
+            (etree._Element, dict): Metadata XML root and its namespaces
+        """
+        return self._read_mtd_xml_stac(self._get_path("product-metadata"))
+
+    def _read_mtd(self) -> (etree._Element, dict):
+        """
+        Read Landsat metadata as:
+
+         - :code:`pandas.DataFrame` whatever its collection is (by default for collection 1)
+         - XML root + its namespace if the product is retrieved from the 2nd collection (by default for collection 2)
+
+        Args:
+            force_pd (bool): If collection 2, return a pandas.DataFrame instead of an XML root + namespace
+        Returns:
+            Tuple[Union[pd.DataFrame, etree._Element], dict]:
+                Metadata as a Pandas.DataFrame or as (etree._Element, dict): Metadata XML root and its namespaces
+        """
+        return self._read_mtd_xml_stac(self._get_path("granule-metadata"))
+
+    def get_quicklook_path(self) -> str:
+        """
+        Get quicklook path if existing.
+
+        Returns:
+            str: Quicklook path
+        """
+        return self._get_path("preview")

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -155,6 +155,9 @@ class PlanetProduct(OpticalProduct):
         Function used to pre_init the products
         (setting needs_extraction and so on)
         """
+        # Planet products are stacked
+        self.is_stacked = True
+
         # Update namespace map key (if needed)
         if self.constellation == Constellation.RE:
             self._nsmap_key = "re"
@@ -191,7 +194,7 @@ class PlanetProduct(OpticalProduct):
                 )
                 self._mask_type = PlanetMaskType.NONE
 
-        # Post init done by the super class
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     def _post_init(self, **kwargs) -> None:

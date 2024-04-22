@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -409,7 +409,7 @@ class MaxarProduct(VhrProduct):
         self._pan_res = 0.5
         self._ms_res = 2.0
 
-        # Post init done by the super class
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     def _set_instrument(self) -> None:
@@ -1264,11 +1264,12 @@ class MaxarProduct(VhrProduct):
         quicklook_path = None
         try:
             if self.is_archived:
-                quicklook_path = path.get_archived_rio_path(
+                quicklook_path = self.path / path.get_archived_path(
                     self.path, file_regex=r".*BROWSE\.JPG"
                 )
             else:
-                quicklook_path = str(next(self.path.glob("*BROWSE.JPG")))
+                quicklook_path = next(self.path.glob("*BROWSE.JPG"))
+            quicklook_path = str(quicklook_path)
         except (StopIteration, FileNotFoundError):
             LOGGER.warning(f"No quicklook found in {self.condensed_name}")
 

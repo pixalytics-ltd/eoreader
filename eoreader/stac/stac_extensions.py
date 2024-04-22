@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -172,9 +172,11 @@ class EoExt:
                     Band.create(
                         name=band.name,
                         common_name=common_name,
-                        description="No description available"
-                        if len(band.description) < 1
-                        else band.description,
+                        description=(
+                            "No description available"
+                            if len(band.description) < 1
+                            else band.description
+                        ),
                         center_wavelength=center_wavelength,
                         full_width_half_max=full_width_half_max,
                         solar_illumination=solar_illumination,

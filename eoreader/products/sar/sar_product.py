@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -193,11 +193,11 @@ class SarProduct(Product):
         self._snap_no_data = 0
         self._raw_no_data = 0
 
+        # Calibrate or not
+        self._calibrate = True
+
         # Initialization from the super class
         super().__init__(product_path, archive_path, output_path, remove_tmp, **kwargs)
-
-        # ???
-        self.pixel_spacing = self.pixel_size / 2.0
 
     def _map_bands(self) -> None:
         """
@@ -475,7 +475,7 @@ class SarProduct(Product):
                 if self.path.suffix == ".zip":
                     try:
                         band_paths[band] = path.get_archived_rio_path(
-                            self.path, band_regex.replace("*", ".*"), as_list=True
+                            self.path, band_regex.replace("*", ".*") + "$", as_list=True
                         )[0]
                         # Get as a list but keep only the first item (S1-SLC with 3 swaths)
                     except FileNotFoundError:
@@ -662,26 +662,37 @@ class SarProduct(Product):
         Returns:
             str: Band path
         """
+        def_pixel_size = float(os.environ.get(SAR_DEF_PIXEL_SIZE, 0))
+        pixel_size = (
+            pixel_size
+            if (pixel_size and pixel_size != self.pixel_size)
+            else def_pixel_size
+        )
+
         raw_band_path = str(self.get_raw_band_paths(**kwargs)[band])
         with rasterio.open(raw_band_path) as ds:
             raw_crs = ds.crs
 
         if raw_crs and raw_crs.is_projected:
             # Set the nodata and write the image where they belong
-            with rioxarray.open_rasterio(raw_band_path) as arr:
-                arr = arr.where(arr != self._raw_no_data, np.nan)
+            arr = utils.read(
+                raw_band_path,
+                pixel_size=pixel_size if pixel_size != 0 else None,
+                masked=False,
+            )
+            arr = arr.where(arr != self._raw_no_data, np.nan)
 
-                file_path = os.path.join(
-                    self._get_band_folder(writable=True),
-                    f"{self.condensed_name}_{band.name}.tif",
-                )
-                utils.write(
-                    arr,
-                    file_path,
-                    dtype=np.float32,
-                    nodata=self._snap_no_data,
-                    predictor=SAR_PREDICTOR,
-                )
+            file_path = os.path.join(
+                self._get_band_folder(writable=True),
+                f"{self.condensed_name}_{band.name}.tif",
+            )
+            utils.write(
+                arr,
+                file_path,
+                dtype=np.float32,
+                nodata=self._snap_no_data,
+                predictor=SAR_PREDICTOR,
+            )
             return file_path
         else:
             # Create target dir (tmp dir)
@@ -692,47 +703,18 @@ class SarProduct(Product):
 
                 # Pre-process graph
                 if PP_GRAPH not in os.environ:
-                    if self.constellation == Constellation.CAPELLA:
-                        LOGGER.debug(
-                            "SNAP Error: [NodeId: Calibration] Mission Capella is currently not supported for calibration. Removing this step."
-                        )
-                        pp_graph = utils.get_data_dir().joinpath(
-                            "grd_sar_preprocess_fallback.xml"
-                        )
-                    elif (
-                        self.constellation == Constellation.CSG
-                        and self.sar_prod_type == SarProductType.CPLX
-                    ):
-                        LOGGER.debug(
-                            "SNAP Error: Calibration currently fails for CSG complex data. Removing this step."
-                        )
-                        pp_graph = utils.get_data_dir().joinpath(
-                            "cplx_no_calib_preprocess_default.xml"
-                        )
-                    elif (
-                        self.constellation == Constellation.CSK and self.nof_swaths > 1
-                    ):
-                        LOGGER.debug(
-                            "SNAP Error: Calibration currently fails for CSK data with multiple swaths. Removing this step."
-                        )
-                        pp_graph = utils.get_data_dir().joinpath(
-                            "grd_sar_preprocess_fallback.xml"
-                        )
-
+                    if self.constellation_id == Constellation.S1.name:
+                        sat = "s1"
+                        if self.sensor_mode.value == "SM":
+                            sat += "_sm"
+                    elif not self._calibrate:
+                        sat = "no_calib"
                     else:
-                        sat = (
-                            "s1"
-                            if self.constellation_id == Constellation.S1.name
-                            else "sar"
-                        )
-                        spt = (
-                            "grd"
-                            if self.sar_prod_type == SarProductType.GDRG
-                            else "cplx"
-                        )
-                        pp_graph = utils.get_data_dir().joinpath(
-                            f"{spt}_{sat}_preprocess_default.xml"
-                        )
+                        sat = "sar"
+                    spt = "grd" if self.sar_prod_type == SarProductType.GDRG else "cplx"
+                    pp_graph = utils.get_data_dir().joinpath(
+                        f"{spt}_{sat}_preprocess_default.xml"
+                    )
                 else:
                     pp_graph = AnyPath(os.environ[PP_GRAPH])
                     if not pp_graph.is_file() or not pp_graph.suffix == ".xml":
@@ -741,14 +723,13 @@ class SarProduct(Product):
                 # Command line
                 if not os.path.isfile(pp_dim):
                     # pixel_size (use SNAP default pixel size for terrain correction)
-                    def_pixel_size = float(os.environ.get(SAR_DEF_PIXEL_SIZE, 0))
-                    res_m = (
+                    pixel_size = (
                         pixel_size
                         if (pixel_size and pixel_size != self.pixel_size)
                         else def_pixel_size
                     )
                     res_deg = (
-                        res_m / 10.0 * 8.983152841195215e-5
+                        pixel_size / 10.0 * 8.983152841195215e-5
                     )  # Approx, shouldn't be used
 
                     # Manage DEM name
@@ -803,7 +784,7 @@ class SarProduct(Product):
                             f"-Pdem_name={strings.to_cmd_string(dem_name.value)}",
                             f"-Pdem_path={strings.to_cmd_string(dem_path)}",
                             f"-Pcrs={self.crs()}",
-                            f"-Pres_m={res_m}",
+                            f"-Pres_m={pixel_size}",
                             f"-Pres_deg={res_deg}",
                             f"-Pout={strings.to_cmd_string(pp_dim)}",
                         ],
@@ -896,14 +877,27 @@ class SarProduct(Product):
 
             return array
 
-        # Get .img file path (readable by rasterio)
+        # Get the .img path(s)
         try:
-            img = rasters.get_dim_img_path(dim_path, f"*{pol}*")
+            imgs = utils.get_dim_img_path(dim_path, f"*{pol}*")
         except FileNotFoundError:
-            img = rasters.get_dim_img_path(dim_path)  # Maybe not the good name
+            imgs = utils.get_dim_img_path(dim_path)  # Maybe not the good name
 
-        # Open SAR image
-        with rioxarray.open_rasterio(str(img)) as arr:
+        # Manage cases where multiple swaths are ortho independently
+        if len(imgs) > 1:
+            mos_path, exists = self._get_out_path(
+                path.get_filename(dim_path) + "_mos.vrt"
+            )
+            if not exists:
+                # Get .img file path (readable by rasterio)
+
+                # Useful for PAZ SC data (multiswath)
+                rasters.merge_vrt(imgs, mos_path)
+        else:
+            mos_path = imgs[0]
+
+        # Open SAR image and convert it to a clean geotiff
+        with rioxarray.open_rasterio(mos_path) as arr:
             arr = arr.where(arr != self._snap_no_data, np.nan)
 
             # Interpolate if needed (interpolate na works only 1D-like, sadly)

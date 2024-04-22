@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https:#sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https:#sertit.unistra.fr/
 # This file is part of eoreader project
 #     https:#github.com/sertit/eoreader
 #
@@ -184,7 +184,7 @@ class S3OlciProduct(S3Product):
         """
         self.needs_extraction = False
 
-        # Post init done by the super class
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     def _set_pixel_size(self) -> None:

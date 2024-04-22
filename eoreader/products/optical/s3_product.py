@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -147,7 +147,7 @@ class S3Product(OpticalProduct):
         self.is_ortho = False
         self._raw_units = RawUnits.RAD
 
-        # Post init done by the super class
+        # Pre init done by the super class
         super()._pre_init(**kwargs)
 
     def _set_instrument(self) -> None:
@@ -806,7 +806,7 @@ class S3Product(OpticalProduct):
         Caches the file if needed (rasterio does not seem to be able to open a netcdf stored in the cloud).
 
         Args:
-            filename (Union[str, BandNames]): Filename or band
+            filename (Union[str, BandNames]): Filename or band (set a wildcard ('*') in the beginning if needed, this function doesn't do that!)
             subdataset (str): NetCDF subdataset if needed
             dtype: Dtype
             squeeze(bool): Squeeze array or not
@@ -834,11 +834,11 @@ class S3Product(OpticalProduct):
             # Cannot read zipped+netcdf files -> we are forced to dezip them
             with zipfile.ZipFile(on_disk, "r") as zip_ds:
                 filenames = [f.filename for f in zip_ds.filelist]
-                regex = re.compile(f".*{filename}")
+                regex = re.compile(f".*/{filename}")
                 bytes_file = zip_ds.read(list(filter(regex.match, filenames))[0])
         else:
             try:
-                nc_path = next(self.path.glob(f"*{filename}*"))
+                nc_path = next(self.path.glob(f"{filename}*"))
             except StopIteration:
                 raise FileNotFoundError(f"Non existing file {filename} in {self.path}")
 
@@ -939,7 +939,7 @@ class S3Product(OpticalProduct):
         """
         try:
             if self.is_archived:
-                quicklook_path = path.get_archived_rio_path(
+                quicklook_path = self.path / path.get_archived_path(
                     self.path, file_regex=r".*.jpg"
                 )
             else:

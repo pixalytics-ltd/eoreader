@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -43,5 +43,11 @@ class InvalidProductError(EoReaderError):
 
 class InvalidTypeError(EoReaderError, TypeError):
     """Invalid Type Name error, thrown when an unknown type is given (should never happen)."""
+
+    pass
+
+
+class UnhandledArchiveError(EoReaderError):
+    """Unhandled Archive error, thrown when an archived product needs to be extracted to be processed."""
 
     pass

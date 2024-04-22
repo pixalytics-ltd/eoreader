@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2023, SERTIT-ICube - France, https://sertit.unistra.fr/
+# Copyright 2024, SERTIT-ICube - France, https://sertit.unistra.fr/
 # This file is part of eoreader project
 #     https://github.com/sertit/eoreader
 #
@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Maxar super class.
+VHR (very high resoplution) super class.
 See `here <https://earth.esa.int/eogateway/documents/20142/37627/DigitalGlobe-Standard-Imagery.pdf>`_
 for more information.
 """
@@ -89,6 +89,17 @@ class VhrProduct(OpticalProduct):
 
         # Initialization from the super class
         super().__init__(product_path, archive_path, output_path, remove_tmp, **kwargs)
+
+    def _pre_init(self, **kwargs) -> None:
+        """
+        Function used to pre_init the products
+        (setting needs_extraction and so on)
+        """
+        # VHR products are stacked
+        self.is_stacked = True
+
+        # Pre init done by the super class
+        super()._pre_init(**kwargs)
 
     def _post_init(self, **kwargs) -> None:
         """
