@@ -6,8 +6,7 @@ from functools import wraps
 from typing import Callable
 
 import tempenv
-from sertit import AnyPath, s3
-from sertit.s3 import USE_S3_STORAGE
+from sertit import AnyPath, s3, unistra
 from sertit.types import AnyPathType
 from sertit.unistra import (
     UNISTRA_S3_ENPOINT,
@@ -44,7 +43,7 @@ def get_ci_db_dir() -> AnyPathType:
     """
     if int(os.getenv(CI_EOREADER_S3, 0)):
         # ON S3
-        s3.define_s3_client(default_endpoint=UNISTRA_S3_ENPOINT)
+        unistra.define_s3_client()
         return AnyPath("s3://sertit-eoreader-ci")
     else:
         # ON DISK
@@ -98,7 +97,9 @@ def get_db_dir() -> AnyPathType:
     Returns:
         str: Database directory
     """
-    with tempenv.TemporaryEnvironment({USE_S3_STORAGE: os.getenv(CI_EOREADER_S3, "0")}):
+    with tempenv.TemporaryEnvironment(
+        {s3.USE_S3_STORAGE: os.getenv(CI_EOREADER_S3, "0")}
+    ):
         return get_geodatastore()
 
 
