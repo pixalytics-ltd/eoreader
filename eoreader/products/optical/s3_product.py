@@ -90,6 +90,9 @@ class S3DataType(ListEnum):
     EFR = "EFR___"
     """EFR Data Type, for OLCI instrument"""
 
+    WFR = "WFR___"
+    """WFR Data Type, for OLCI instrument"""
+
     RBT = "RBT__"
     """RBT Data Type, for SLSTR instrument"""
 
