@@ -120,7 +120,7 @@ class S2Jp2Masks(ListEnum):
 
 
 BAND_DIR_NAMES = {
-    S2ProductType.L1C: ".",
+    S2ProductType.L1C: "IMG_DATA",
     S2ProductType.L2A: {
         "01": ["R60m"],
         "02": ["R10m", "R20m", "R60m"],
