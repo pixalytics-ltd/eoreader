@@ -515,8 +515,8 @@ class VhrProduct(OpticalProduct):
             else:
                 prod_path = next(self.path.glob(f"{filename}*.{extension}"))
 
-        except (FileNotFoundError, IndexError):
-            LOGGER.warning(
+        except (FileNotFoundError, IndexError, StopIteration):
+            raise InvalidProductError(
                 f"No file corresponding to *{filename}*.{extension} found in {self.path}"
             )
 

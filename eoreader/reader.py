@@ -183,7 +183,7 @@ class Constellation(ListEnum):
     HLS = "HLS"
     """Harmonized Landsat-Sentinel"""
 
-    QB = "QuickBird"
+    QB02 = "QuickBird"
     """QuickBird"""
 
     GE01 = "GeoEye-1"
@@ -275,7 +275,7 @@ CONSTELLATION_REGEX = {
     Constellation.SPOT5: r"SP05_HRG_(HM_|J__|T__|X__|TX__|HMX)__\d_\d{8}T\d{6}_\d{8}T\d{6}_.*",
     Constellation.VIS1: r"VIS1_(PAN|BUN|PSH|MS4)_.+_\d{2}-\d",
     Constellation.RCM: r"RCM\d_OK\d+_PK\d+_\d_.{4,}_\d{8}_\d{6}(_(HH|VV|VH|HV|RV|RH)){1,4}_(SLC|GRC|GRD|GCC|GCD)",
-    Constellation.QB: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
+    Constellation.QB02: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
     Constellation.GE01: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
     Constellation.WV01: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
     Constellation.WV02: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
@@ -347,7 +347,7 @@ MTD_REGEX = {
             r"\d+_[RHV]{2}\.tif",
         ],
     },
-    Constellation.QB: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
+    Constellation.QB02: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
     Constellation.GE01: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
     Constellation.WV01: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
     Constellation.WV02: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
@@ -360,27 +360,18 @@ MTD_REGEX = {
     Constellation.SV1: r"SV1-0[1-4]_\d{8}_L(1B|2A)\d{10}_\d{13}_\d{2}-(MUX|PSH)\.xml",
     Constellation.HLS: rf"{CONSTELLATION_REGEX[Constellation.HLS]}\.Fmask\.tif",
     Constellation.GS2: rf"{CONSTELLATION_REGEX[Constellation.GS2]}\.dim",
-    Constellation.SPOT45: {
-        "nested": -1,  # File that can be found at any level (product/**/file)
-        "regex": [
-            r"METADATA\.DIM",  # Too generic name, check also a band
-            r"IMAGERY\.TIF",
-        ],
-    },
-    Constellation.SPOT4: {
-        "nested": -1,  # File that can be found at any level (product/**/file)
-        "regex": [
-            r"METADATA\.DIM",  # Too generic name, check also a band
-            r"IMAGERY\.TIF",
-        ],
-    },
-    Constellation.SPOT5: {
-        "nested": -1,  # File that can be found at any level (product/**/file)
-        "regex": [
-            r"METADATA\.DIM",  # Too generic name, check also a band
-            r"IMAGERY\.TIF",
-        ],
-    },
+    Constellation.SPOT45: [
+        r"METADATA\.DIM",  # Too generic name, check also a band
+        r"IMAGERY\.TIF",
+    ],
+    Constellation.SPOT4: [
+        r"METADATA\.DIM",  # Too generic name, check also a band
+        r"IMAGERY\.TIF",
+    ],
+    Constellation.SPOT5: [
+        r"METADATA\.DIM",  # Too generic name, check also a band
+        r"IMAGERY\.TIF",
+    ],
     Constellation.S2_SIN: {
         "nested": 1,  # File that can be found at any level (product/**/file)
         "regex": [
@@ -922,7 +913,7 @@ def create_product(
         constellation = None  # All product names are the same, so assess it with MTD
     # Maxar-like constellations
     elif constellation in [
-        Constellation.QB,
+        Constellation.QB02,
         Constellation.GE01,
         Constellation.WV01,
         Constellation.WV02,
