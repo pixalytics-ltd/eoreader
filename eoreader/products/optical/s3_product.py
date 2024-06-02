@@ -136,7 +136,11 @@ class S3Product(OpticalProduct):
         self._misc_file = None
         self._solar_flux_name = None
 
-        self._set_preprocess_members(product_path)
+        if "RBT" in str(product_path):
+            # product_path not needed as an input for SLSTR
+            self._set_preprocess_members()
+        else:
+            self._set_preprocess_members(product_path)
 
         super().__init__(product_path, archive_path, output_path, remove_tmp, **kwargs)
 
