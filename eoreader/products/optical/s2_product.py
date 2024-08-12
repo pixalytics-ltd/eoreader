@@ -118,7 +118,7 @@ class S2Jp2Masks(ListEnum):
 
 
 BAND_DIR_NAMES = {
-    S2ProductType.L1C: "IMG_DATA",
+    S2ProductType.L1C: ".",
     S2ProductType.L2A: {
         "01": ["R60m"],
         "02": ["R10m", "R20m", "R60m"],
@@ -1279,10 +1279,46 @@ class S2Product(OpticalProduct):
                 azimuth_angle = float(mean_sun_angles.findtext("AZIMUTH_ANGLE"))
             except TypeError:
                 raise InvalidProductError(
-                    "Azimuth or Zenith angles not found in metadata!"
+                    "Sun Azimuth or Zenith angles not found in metadata!"
                 )
         except InvalidProductError as ex:
             LOGGER.warning(f"{ex}: setting sun angles to (0, 0).")
+            azimuth_angle = 0.0
+            zenith_angle = 0.0
+
+        return azimuth_angle, zenith_angle
+
+
+    @cache
+    def get_mean_view_angles(self) -> (float, float):
+        """
+        Get Mean View angles (Azimuth and Zenith angles)
+
+        .. code-block:: python
+
+            >>> from eoreader.reader import Reader
+            >>> path = r"S2A_MSIL1C_20200824T110631_N0209_R137_T30TTK_20200824T150432.SAFE.zip"
+            >>> prod = Reader().open(path)
+            >>> prod.get_mean_view_angles()
+            (277.757868221032, 5.61185844700919)
+
+        Returns:
+            (float, float): Mean Azimuth and Zenith angle
+        """
+        try:
+            # Read metadata
+            root, _ = self.read_mtd()
+
+            try:
+                mean_view_angles = root.find(".//Mean_Viewing_Incidence_Angle_List")
+                zenith_angle = float(mean_view_angles.findtext("ZENITH_ANGLE"))
+                azimuth_angle = float(mean_view_angles.findtext("AZIMUTH_ANGLE"))
+            except TypeError:
+                raise InvalidProductError(
+                    "Viewing Azimuth or Zenith angles not found in metadata!"
+                )
+        except InvalidProductError as ex:
+            LOGGER.warning(f"{ex}: setting view angles to (0, 0).")
             azimuth_angle = 0.0
             zenith_angle = 0.0
 
