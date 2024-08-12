@@ -202,12 +202,13 @@ class S3OlciProduct(S3Product):
         # Product type
         if self.name[7] == "1":
             self.product_type = S3ProductType.OLCI_EFR
+            self._data_type = S3DataType.EFR
         elif self.name[7] == "2":
             self.product_type = S3ProductType.OLCI_WFR
+            self._data_type = S3DataType.WFR
         else:
-            raise InvalidTypeError("Only L1 products are used for Sentinel-3 data.")
+            raise InvalidTypeError("Only L1 EFR and L2 WFR products are used for Sentinel-3 data.")
 
-        self._data_type = S3DataType.EFR
 
     def _map_bands(self) -> None:
         """

@@ -6,6 +6,9 @@
 
 ## 0.21.2 (2024-07-30)
 
+- FIX: In `SPOT` products, METADATA.DIM and IMAGERY.TIF must be at the root of the product ([#145](https://github.com/sertit/eoreader/issues/145))
+- FIX: `Sentinel-2` product with StopIteration error ([#142](https://github.com/sertit/eoreader/issues/142))
+- FIX: Fix `Maxar` product with `QB02` satellite ID ([#140](https://github.com/sertit/eoreader/issues/140))
 - ENH: `to_str` and `to_band`: add a `as_list` argument defaulting to `True`. When set as False, return a str from `to_str` and a band from `to_band` ([#138](https://github.com/sertit/eoreader/issues/138)). Thanks @jsetty!
 - FIX: `Sentinel-2` product with `StopIteration` error ([#142](https://github.com/sertit/eoreader/issues/142))
 - FIX: Fix error in looking for bands in `Sentinel-2 L1C` archived products ([#168](https://github.com/sertit/eoreader/issues/168))
