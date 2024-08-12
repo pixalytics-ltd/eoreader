@@ -32,13 +32,11 @@ import pandas as pd
 import rasterio
 import xarray as xr
 from affine import Affine
-from fiona.errors import DriverError
 from lxml import etree
-from pystac import Item
 from rasterio import errors, features, transform
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
-from sertit import AnyPath, files, geometry, path, rasters, vectors
+from sertit import AnyPath, files, geometry, path, rasters, types, vectors
 from sertit.misc import ListEnum
 from sertit.types import AnyPathStrType, AnyPathType
 from shapely.geometry import box
@@ -493,7 +491,7 @@ class S2Product(OpticalProduct):
                     next(self.path.glob("**/tileInfo.json")), print_file=False
                 )
                 name = tile_info["productName"]
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, StopIteration):
                 raise InvalidProductError(
                     f"Corrupted metadata and bad filename for {self.path}! "
                     f"Impossible to process this product."
@@ -537,7 +535,7 @@ class S2Product(OpticalProduct):
             dict: Dictionary containing the folder path for each queried band
         """
         if pixel_size is not None:
-            if isinstance(pixel_size, (list, tuple)):
+            if types.is_iterable(pixel_size):
                 pixel_size = pixel_size[0]
 
         # Open the band directory names
@@ -566,26 +564,31 @@ class S2Product(OpticalProduct):
                 dir_name = band_dir
 
             if self.is_archived:
-                # Open the zip file
-                with zipfile.ZipFile(self.path, "r") as zip_ds:
-                    # Get the band folder (use dirname is the first of the list is a band)
-                    band_path = [
-                        os.path.dirname(f.filename)
-                        for f in zip_ds.filelist
-                        if dir_name in f.filename
-                    ][0]
+                # Get the band folder (use dirname is the first of the list is a band)
+                band_path = os.path.dirname(
+                    path.get_archived_rio_path(
+                        self.path, f"{self._get_image_folder()}.*{dir_name}"
+                    )
+                )
 
-                    # Workaround for a bug involving some bad archives
-                    if band_path.startswith("/"):
-                        band_path = band_path[1:]
-                    s2_bands_folder[band] = band_path
+                # Workaround for a bug involving some bad archives
+                if band_path.startswith("/"):
+                    band_path = band_path[1:]
+
+                # Workaround for PEPS Sentinel-2 archives with incomplete manifest (without any directory)
+                if band_path.endswith(".jp2"):
+                    band_path = os.path.dirname(band_path)
+                else:
+                    band_path = os.path.basename(band_path)
+
+                s2_bands_folder[band] = band_path
             else:
                 # Search for the name of the folder into the S2 products
                 try:
                     s2_bands_folder[band] = next(
                         self.path.glob(f"{self._get_image_folder()}/{dir_name}")
                     )
-                except IndexError:
+                except (IndexError, StopIteration):
                     s2_bands_folder[band] = self.path
 
         for band in band_list:
@@ -897,7 +900,7 @@ class S2Product(OpticalProduct):
             # Read vector
             try:
                 mask = vectors.read(mask_path, crs=self.crs())
-            except DriverError:
+            except vectors.DataSourceError:
                 LOGGER.warning(f"Corrupted mask: {mask_path}. Returning an empty one.")
                 mask = gpd.GeoDataFrame(geometry=[], crs=self.crs())
 
@@ -1724,16 +1727,8 @@ class S2StacProduct(StacProduct, S2Product):
         super_kwargs = kwargs.copy()
 
         # Get STAC Item
-        self.item = None
+        self.item = self._set_item(product_path, **super_kwargs)
         """ STAC Item of the product """
-        self.item = super_kwargs.pop("item", None)
-        if self.item is None:
-            try:
-                self.item = Item.from_file(product_path)
-            except TypeError:
-                raise InvalidProductError(
-                    "You should either fill 'product_path' or 'item'."
-                )
 
         if not self._is_mpc():
             self.default_clients = [

@@ -28,7 +28,7 @@ from lxml import etree
 from lxml.builder import E
 from rasterio import crs
 from rasterio.enums import Resampling
-from sertit import logs, misc, path, rasters
+from sertit import logs, misc, path, rasters, types
 from sertit.misc import ListEnum
 from sertit.types import AnyPathStrType, AnyPathType
 
@@ -423,8 +423,7 @@ class CustomProduct(Product):
             return {}
 
         # Get band paths
-        if not isinstance(bands, list):
-            bands = [bands]
+        bands = types.make_iterable(bands)
 
         if pixel_size is None and size is not None:
             pixel_size = self._pixel_size_from_img_size(size)

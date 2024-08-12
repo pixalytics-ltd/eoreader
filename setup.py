@@ -33,7 +33,7 @@ setuptools.setup(
         "xarray>=0.18.0",
         "rioxarray>=0.10.0",
         "geopandas>=0.11.0",
-        "sertit[full]>=1.30.0",
+        "sertit[full]>=1.41.0",
         "spyndex>=0.3.0",
         "pyresample",
         "zarr",
@@ -41,8 +41,14 @@ setuptools.setup(
         "validators",
         "methodtools",
         "dicttoxml",
-        "pystac[validation]",
     ],
+    extras_require={
+        "stac": [
+            "pystac[validation]",
+            "stac-asset",
+            "planetary_computer",
+        ]
+    },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",

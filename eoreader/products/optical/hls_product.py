@@ -31,7 +31,7 @@ import rasterio
 import xarray as xr
 from lxml import etree
 from rasterio.enums import Resampling
-from sertit import path, rasters, rasters_rio, xml
+from sertit import path, rasters, rasters_rio, types, xml
 from sertit.misc import ListEnum
 from sertit.types import AnyPathType
 
@@ -873,8 +873,7 @@ class HlsProduct(OpticalProduct):
             return {}
 
         # Get band paths
-        if not isinstance(bands, list):
-            bands = [bands]
+        bands = types.make_iterable(bands)
 
         if pixel_size is None and size is not None:
             pixel_size = self._pixel_size_from_img_size(size)

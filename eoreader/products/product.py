@@ -43,7 +43,7 @@ from rasterio import transform, warp
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
-from sertit import AnyPath, files, logs, misc, path, rasters, strings, xml
+from sertit import AnyPath, files, logs, misc, path, rasters, strings, types, xml
 from sertit.misc import ListEnum
 from sertit.types import AnyPathStrType, AnyPathType
 
@@ -873,7 +873,7 @@ class Product:
             )
             pixel_size = kwargs.pop("resolution")
 
-        if (isinstance(bands, list) and ("GREEN1" in bands or GREEN1 in bands)) or (
+        if (types.is_iterable(bands) and ("GREEN1" in bands or GREEN1 in bands)) or (
             "GREEN1" == bands or GREEN1 == bands
         ):
             logs.deprecation_warning(
@@ -1239,9 +1239,7 @@ class Product:
         Returns:
             bool: True if the products has the specified band
         """
-        if not isinstance(bands, list):
-            bands = [bands]
-
+        bands = types.make_iterable(bands)
         return all([self.has_band(band) for band in set(bands)])
 
     @abstractmethod
@@ -1715,8 +1713,7 @@ class Product:
         # Are we sure of that ?
         xarr.attrs = {}
 
-        if not isinstance(bands, list):
-            bands = [bands]
+        bands = types.make_iterable(bands)
         long_name = to_str(bands)
         xr_name = "_".join(long_name)
         attr_name = " ".join(long_name)
@@ -1887,7 +1884,7 @@ class Product:
             return f"{abs(res):.2f}m".replace(".", "-")
 
         if pixel_size:
-            if isinstance(pixel_size, (tuple, list)):
+            if types.is_iterable(pixel_size):
                 res_x = _res_to_str(pixel_size[0])
                 res_y = _res_to_str(pixel_size[1])
                 if res_x == res_y:
@@ -2032,8 +2029,7 @@ class Product:
         Returns:
             list: Mapped bands
         """
-        if not isinstance(raw_bands, list):
-            raw_bands = [raw_bands]
+        raw_bands = types.make_iterable(raw_bands)
 
         bands = []
         for raw_band in raw_bands:

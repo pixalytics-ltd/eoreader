@@ -28,9 +28,8 @@ import pandas as pd
 import xarray as xr
 from lxml import etree
 from lxml.builder import E
-from pystac import Item
 from rasterio.enums import Resampling
-from sertit import AnyPath, path, rasters, rasters_rio
+from sertit import AnyPath, path, rasters, rasters_rio, types
 from sertit.misc import ListEnum
 from sertit.types import AnyPathStrType, AnyPathType
 
@@ -1007,11 +1006,16 @@ class LandsatProduct(OpticalProduct):
                 # FOR COLLECTION 1 AND 2
                 tar_ds = None
                 try:
-                    mtd_path = next(self.path.glob(f"**/*{mtd_name}"))
-                except ValueError:
-                    mtd_path = next(self.path.glob(f"*{mtd_name}"))
+                    try:
+                        mtd_path = next(self.path.glob(f"**/*{mtd_name}"))
+                    except ValueError:
+                        mtd_path = next(self.path.glob(f"*{mtd_name}"))
 
-                if not mtd_path.is_file():
+                    if not mtd_path.is_file():
+                        raise InvalidProductError(
+                            f"No metadata file found in {self.name} !"
+                        )
+                except StopIteration:
                     raise InvalidProductError(
                         f"No metadata file found in {self.name} !"
                     )
@@ -1426,8 +1430,7 @@ class LandsatProduct(OpticalProduct):
             return {}
 
         # Get band paths
-        if not isinstance(bands, list):
-            bands = [bands]
+        bands = types.make_iterable(bands)
 
         if pixel_size is None and size is not None:
             pixel_size = self._pixel_size_from_img_size(size)
@@ -1860,16 +1863,8 @@ class LandsatStacProduct(StacProduct, LandsatProduct):
         super_kwargs = kwargs.copy()
 
         # Get STAC Item
-        self.item = None
+        self.item = self._set_item(product_path, **super_kwargs)
         """ STAC Item of the product """
-        self.item = super_kwargs.pop("item", None)
-        if self.item is None:
-            try:
-                self.item = Item.from_file(product_path)
-            except TypeError:
-                raise InvalidProductError(
-                    "You should either fill 'product_path' or 'item'."
-                )
 
         if not self._is_mpc():
             self.default_clients = [

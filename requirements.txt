@@ -37,7 +37,7 @@ geopandas>=0.11.0
 spyndex>=0.3.0
 
 # SERTIT libs
-sertit[full]>=1.33.0
+sertit[full]>=1.41.0
 
 # Optimizations
 dask[complete]>=2021.10.0
@@ -47,6 +47,7 @@ methodtools
 matplotlib
 
 # MPC, AWS and STAC
+# /!\ Should not be mandatory requirements!
 pystac[validation]
 stac-asset
 planetary_computer

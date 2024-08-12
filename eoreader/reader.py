@@ -25,15 +25,23 @@ from enum import unique
 from typing import Union
 from zipfile import BadZipFile
 
-import pystac
 import validators
-from pystac import Item
-from sertit import AnyPath, path, strings
+from sertit import AnyPath, path, strings, types
 from sertit.misc import ListEnum
 from sertit.types import AnyPathStrType
 
 from eoreader import EOREADER_NAME
 from eoreader.exceptions import InvalidProductError
+
+try:
+    import pystac
+    from pystac import Item
+
+    PYSTAC_INSTALLED = True
+except ModuleNotFoundError:
+    from typing import Any as Item
+
+    PYSTAC_INSTALLED = False
 
 LOGGER = logging.getLogger(EOREADER_NAME)
 
@@ -183,7 +191,7 @@ class Constellation(ListEnum):
     HLS = "HLS"
     """Harmonized Landsat-Sentinel"""
 
-    QB = "QuickBird"
+    QB02 = "QuickBird"
     """QuickBird"""
 
     GE01 = "GeoEye-1"
@@ -275,7 +283,7 @@ CONSTELLATION_REGEX = {
     Constellation.SPOT5: r"SP05_HRG_(HM_|J__|T__|X__|TX__|HMX)__\d_\d{8}T\d{6}_\d{8}T\d{6}_.*",
     Constellation.VIS1: r"VIS1_(PAN|BUN|PSH|MS4)_.+_\d{2}-\d",
     Constellation.RCM: r"RCM\d_OK\d+_PK\d+_\d_.{4,}_\d{8}_\d{6}(_(HH|VV|VH|HV|RV|RH)){1,4}_(SLC|GRC|GRD|GCC|GCD)",
-    Constellation.QB: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
+    Constellation.QB02: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
     Constellation.GE01: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
     Constellation.WV01: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
     Constellation.WV02: r"\d{12}_\d{2}_P\d{3}_(MUL|PAN|PSH|MOS)",
@@ -301,7 +309,7 @@ MTD_REGEX = {
         # File that can be found at any level (product/**/file)
         "regex": r".*s1[ab]-(iw|ew|sm|wv|s\d)\d*-(raw|slc|grd|ocn)-[hv]{2}-\d{8}t\d{6}-\d{8}t\d{6}-\d{6}-\w{6}-\d{3}(-cog|)\.xml",
     },
-    Constellation.S2: {"nested": 3, "regex": r"MTD_TL.xml"},
+    Constellation.S2: {"nested": 2, "regex": r"MTD_TL.xml"},
     Constellation.S2_E84: rf"{CONSTELLATION_REGEX[Constellation.S2_E84]}\.json",
     Constellation.S2_THEIA: rf"{CONSTELLATION_REGEX[Constellation.S2_THEIA]}_MTD_ALL\.xml",
     Constellation.S3_OLCI: r"Oa\d{2}_(radiance|reflectance).nc",
@@ -347,7 +355,7 @@ MTD_REGEX = {
             r"\d+_[RHV]{2}\.tif",
         ],
     },
-    Constellation.QB: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
+    Constellation.QB02: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
     Constellation.GE01: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
     Constellation.WV01: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
     Constellation.WV02: r"\d{2}\w{3}\d{8}-.{4}(_R\dC\d|)-\d{12}_\d{2}_P\d{3}.TIL",
@@ -360,27 +368,18 @@ MTD_REGEX = {
     Constellation.SV1: r"SV1-0[1-4]_\d{8}_L(1B|2A)\d{10}_\d{13}_\d{2}-(MUX|PSH)\.xml",
     Constellation.HLS: rf"{CONSTELLATION_REGEX[Constellation.HLS]}\.Fmask\.tif",
     Constellation.GS2: rf"{CONSTELLATION_REGEX[Constellation.GS2]}\.dim",
-    Constellation.SPOT45: {
-        "nested": -1,  # File that can be found at any level (product/**/file)
-        "regex": [
-            r"METADATA\.DIM",  # Too generic name, check also a band
-            r"IMAGERY\.TIF",
-        ],
-    },
-    Constellation.SPOT4: {
-        "nested": -1,  # File that can be found at any level (product/**/file)
-        "regex": [
-            r"METADATA\.DIM",  # Too generic name, check also a band
-            r"IMAGERY\.TIF",
-        ],
-    },
-    Constellation.SPOT5: {
-        "nested": -1,  # File that can be found at any level (product/**/file)
-        "regex": [
-            r"METADATA\.DIM",  # Too generic name, check also a band
-            r"IMAGERY\.TIF",
-        ],
-    },
+    Constellation.SPOT45: [
+        r"METADATA\.DIM",  # Too generic name, check also a band
+        r"IMAGERY\.TIF",
+    ],
+    Constellation.SPOT4: [
+        r"METADATA\.DIM",  # Too generic name, check also a band
+        r"IMAGERY\.TIF",
+    ],
+    Constellation.SPOT5: [
+        r"METADATA\.DIM",  # Too generic name, check also a band
+        r"IMAGERY\.TIF",
+    ],
     Constellation.S2_SIN: {
         "nested": 1,  # File that can be found at any level (product/**/file)
         "regex": [
@@ -441,7 +440,7 @@ class Reader:
             return re.compile(f"{prefix}{regex_str}{suffix}")
 
         # Case folder is not enough to identify the products (i.e. COSMO Skymed)
-        if isinstance(regex, list):
+        if types.is_iterable(regex):
             comp = [_compile_(regex) for regex in regex]
         else:
             comp = [_compile_(regex)]
@@ -521,16 +520,32 @@ class Reader:
         Returns:
             Product: EOReader's product
         """
-        # If an URL is given, it must point to an URL translatable to a STAC Item
+        prod = None
+        # If a URL is given, it must point to a URL translatable to a STAC Item
         if validators.url(product_path):
-            try:
-                product_path = pystac.Item.from_file(product_path)
-            except Exception:
-                raise InvalidProductError(
-                    f"Cannot convert your URL ({product_path}) to a STAC Item."
+            if PYSTAC_INSTALLED:
+                try:
+                    product_path = Item.from_file(product_path)
+                    is_stac = True
+                except Exception:
+                    raise InvalidProductError(
+                        f"Cannot convert your URL ({product_path}) to a STAC Item."
+                    )
+            else:
+                raise ModuleNotFoundError(
+                    "You should install 'pystac' to use STAC Products."
                 )
+        # Check path (first check URL as they are also strings)
+        elif path.is_path(product_path):
+            is_stac = False
+        else:
+            # Check STAC Item
+            if PYSTAC_INSTALLED:
+                is_stac = isinstance(product_path, pystac.Item)
+            else:
+                is_stac = False
 
-        if isinstance(product_path, Item):
+        if is_stac:
             prod = self._open_stac_item(product_path, output_path, remove_tmp, **kwargs)
         else:
             # If not an Item, it should be a path to somewhere
@@ -816,7 +831,7 @@ class Reader:
                 )
             else:
                 nested_wildcard = "/".join(["*" for _ in range(nested)])
-                prod_files = list(product_path.glob(f"*{nested_wildcard}/*.*"))
+                prod_files = list(product_path.glob(f"{nested_wildcard}/*.*"))
 
         # Archive
         else:
@@ -922,7 +937,7 @@ def create_product(
         constellation = None  # All product names are the same, so assess it with MTD
     # Maxar-like constellations
     elif constellation in [
-        Constellation.QB,
+        Constellation.QB02,
         Constellation.GE01,
         Constellation.WV01,
         Constellation.WV02,

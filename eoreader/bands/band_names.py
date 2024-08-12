@@ -1,12 +1,12 @@
 from typing import Union
 
-from sertit.misc import ListEnum
+from sertit import misc, types
 
 from eoreader.exceptions import InvalidTypeError
 from eoreader.stac import StacCommonNames
 
 
-class BandNames(ListEnum):
+class BandNames(misc.ListEnum):
     """Super class for band names, **do not use it**."""
 
     @classmethod
@@ -25,8 +25,8 @@ class BandNames(ListEnum):
         Returns:
             list: List of enums
         """
-        if not isinstance(name_list, list):
-            name_list = [name_list]
+        name_list = types.make_iterable(name_list)
+
         try:
             band_names = [cls(name) for name in name_list]
         except ValueError as ex:

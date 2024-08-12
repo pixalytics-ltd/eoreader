@@ -31,7 +31,7 @@ import numpy as np
 import xarray as xr
 from rasterio import features
 from rasterio.enums import Resampling
-from sertit import path, rasters
+from sertit import path, rasters, types
 from sertit.misc import ListEnum
 from sertit.types import AnyPathStrType, AnyPathType
 
@@ -531,7 +531,10 @@ class S3SlstrProduct(S3Product):
         if self.is_archived:
             raw_path = path.get_archived_path(self.path, f".*{filename}*")
         else:
-            raw_path = next(self.path.glob(f"*{filename}*"))
+            try:
+                raw_path = next(self.path.glob(f"*{filename}*"))
+            except StopIteration:
+                raise FileNotFoundError(f"Non existing file {filename} in {self.path}")
 
         return raw_path
 
@@ -1095,8 +1098,7 @@ class S3SlstrProduct(S3Product):
             xr.DataArray: Mask masked array
 
         """
-        if not isinstance(bit_ids, list):
-            bit_ids = [bit_ids]
+        bit_ids = types.make_iterable(bit_ids)
         conds = rasters.read_bit_array(bit_array, bit_ids)
         cond = reduce(lambda x, y: x | y, conds)  # Use every condition (bitwise or)
 

@@ -416,6 +416,7 @@ def to_band(
         list: converted values
 
     """
+    from sertit import types
 
     def convert_to_band(tc) -> BandNames:
         band_or_idx = None
@@ -460,14 +461,14 @@ def to_band(
 
     if as_list:
         band_list = []
-        if not isinstance(to_convert, list):
-            to_convert = [to_convert]
+        to_convert = types.make_iterable(to_convert)
+
         for tc in to_convert:
             tc_band = convert_to_band(tc=tc)
             band_list.append(tc_band)
         return band_list
     else:
-        if isinstance(to_convert, list):
+        if types.is_iterable(to_convert):
             raise _ite(f"Set as_list=True(default) for list arguments")
         return convert_to_band(to_convert)
 
@@ -491,9 +492,10 @@ def to_str(
     Returns:
         list: str bands
     """
+    from sertit import types
+
     if as_list:
-        if not isinstance(to_convert, list):
-            to_convert = [to_convert]
+        to_convert = types.make_iterable(to_convert)
 
         bands_str = []
         for tc in to_convert:
@@ -508,7 +510,7 @@ def to_str(
             bands_str.append(band_str)
         return bands_str
     else:
-        if isinstance(to_convert, list):
+        if types.is_iterable(to_convert):
             raise _ite(f"Set as_list=True(default) for list arguments")
         try:
             band_str = tc.name

@@ -1,12 +1,28 @@
 # Release History
 
-## 0.21.2 (2024-mm-dd)
+## 0.21.3 (2024-mm-dd)
+
+- FIX: Get better window name (if available) when writing bands on disk (in tmp folder) 
+
+## 0.21.2 (2024-07-30)
 
 - ENH: `to_str` and `to_band`: add a `as_list` argument defaulting to `True`. When set as False, return a str from `to_str` and a band from `to_band` ([#138](https://github.com/sertit/eoreader/issues/138)). Thanks @jsetty!
+- FIX: `Sentinel-2` product with `StopIteration` error ([#142](https://github.com/sertit/eoreader/issues/142))
+- FIX: Fix error in looking for bands in `Sentinel-2 L1C` archived products ([#168](https://github.com/sertit/eoreader/issues/168))
 - FIX: Fix issue with geocoding with unzipped `Sentinel-3 OLCI` product ([#137](https://github.com/sertit/eoreader/issues/137))
-- FIX: Fix iceye product when extent file (*.kml) not found ([#135](https://github.com/sertit/eoreader/pull/135))
-- FIX: Add missing `pystac[validation]` in setup.py
-- CI: Fix S3 endpoint management with `sertit==1.37.0`
+- FIX: In `SPOT` products, METADATA.DIM and IMAGERY.TIF must be at the root of the product ([#145](https://github.com/sertit/eoreader/issues/145))
+- FIX: Fix `Maxar` product with `QB02` satellite ID ([#140](https://github.com/sertit/eoreader/issues/140))
+- FIX: Fix `ICEYE` product when extent file (*.kml) not found ([#135](https://github.com/sertit/eoreader/pull/135))
+- FIX: Handle `RCM` and `RS2` products that doesn't bundle their extent in a KML file ([#155](https://github.com/sertit/eoreader/issues/155))
+- FIX: Handle wrongly recognized `Planet` products because of the recursive nested mtd in the Reader ([#169](https://github.com/sertit/eoreader/issues/169))
+- FIX: Fix an unknown `Planet` bug that just appeared (`'...Path' has no len()`)
+- FIX: Force the loading of `DimapV1` bands in `float32`
+- FIX: Handle the case where `fiona` isn't installed anymore (with `geopandas 1.0`)
+- FIX: Don't make `pystac` a mandatory requirement
+- OPTIM: Search correctly nested metadata in the Reader (without accidentally using a recursive glob)
+- CI: Fix S3 endpoint management with `sertit>=1.37`
+- CI: Remove for now end-to-end tests with Python 3.11 and 3.10. 
+- INSTALL: Remove `pystac[validation]` (as it is an optional dependency) from setup.py, and create a `stac` extra feature.
 
 ## 0.21.1 (2024-04-03)
 
